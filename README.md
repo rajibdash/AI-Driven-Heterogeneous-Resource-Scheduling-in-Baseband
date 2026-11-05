@@ -4,6 +4,25 @@ A small Python prototype for assigning time-critical baseband processing workloa
 
 > **What this project schedules:** compute tasks such as channel estimation, beamforming, and decoding across CPUs, DSPs, FPGAs, GPUs, or dedicated accelerators. It is not a 3GPP MAC scheduler and does not allocate radio resource blocks to UEs. This is a scheduling simulation/control-plane foundation, not a production real-time executor.
 
+## Bottlenecks in traditional scheduling approaches
+
+Modern radio access networks have scheduling decisions at more than one level. A radio (UE) scheduler decides which user equipment (UE) can use radio resources in each transmission time interval (TTI), balancing throughput, fairness, quality of service (QoS), buffer backlog, and retransmission state such as HARQ. Traditional radio schedulers often use handcrafted heuristics such as Proportional Fair (PF), Round Robin (RR), or weighted PF. Those approaches address radio-resource allocation; they are not the same problem as assigning baseband compute tasks to processors, and this repository does **not** implement a UE or resource-block scheduler.
+
+The broader RAN environment also carries different service profiles at the same time:
+
+- **eMBB (Enhanced Mobile Broadband):** emphasizes high throughput and large data volumes.
+- **URLLC (Ultra-Reliable Low-Latency Communications):** emphasizes very low latency and high reliability.
+- **mMTC (Massive Machine-Type Communications):** involves many devices sending small, often sporadic messages.
+
+That changing traffic and radio environment also changes the mix and urgency of baseband Layer 1 (L1) work, including channel estimation, massive-MIMO beamforming, and decoding. At the compute-scheduling layer that this project models, important challenges include:
+
+- **Static heuristics:** a fixed device choice or fixed placement rule may not adapt well when workload size, configuration, or execution conditions change.
+- **Hardware underutilization:** without workload-aware placement, some compatible CPUs, GPUs, DSPs, FPGAs, or ASICs can be idle while another resource is overloaded.
+- **Deadline and service-level objective misses:** a task that finishes too late can contribute to missed processing deadlines and, in an integrated pipeline, may ultimately affect packet delivery or service objectives.
+- **Power constraints:** selecting a fast but power-hungry device without accounting for concurrent work can exceed the platform's intended power budget.
+
+These are motivating challenges, not measured results from this repository. The prototype addresses a limited part of the compute-placement problem with runtime profiles, deadline and power feasibility checks, and an adaptive policy objective. It does not claim to solve radio-resource allocation, guarantee service-level agreements, or demonstrate performance improvements on real hardware.
+
 ## What is implemented
 
 - **Deadline-aware placement:** tasks are admitted only when an estimated completion fits the absolute deadline.

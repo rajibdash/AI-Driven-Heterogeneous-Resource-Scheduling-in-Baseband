@@ -92,4 +92,68 @@ The supplied accelerator profiles and simulation values are illustrative, not be
 
 ## Future production considerations
 
-For production use, calibrate profiles by hardware, software/firmware, and workload configuration; validate telemetry before updating estimates; monitor predicted-versus-measured duration, deadline misses, rejection rates, utilization, and power; and define failure behavior for degraded devices and overruns. Any future learned policy should be evaluated on representative traces and retain deterministic compatibility, deadline, and power checks outside the model, with replay/shadow evaluation, constrained rollout, and rollback.
+This section describes work that would be needed before connecting this prototype to a real baseband system. **These capabilities are not implemented in this repository.** The current code plans tasks from supplied profiles and simulated/runtime feedback; it does not dispatch work to real hardware, collect platform telemetry, or guarantee deadlines.
+
+### 1. Measure and calibrate device profiles
+
+The scheduler needs a realistic estimate of how long each type of task takes on each compatible accelerator. The example profiles in this project are illustrative only. For a real platform, measure representative tasks on the target hardware and software stack, then use those measurements to populate `Performance(time_per_unit_us, power_w)`.
+
+- Measure the actual workload configurations that matter (for example, relevant input sizes, antenna counts, decoder modes, or batch sizes). A single profile for a broad task name may hide large differences in execution cost.
+- Keep work units consistent for a workload kind. If one profile defines a unit as one frame, every matching task and measurement must use that same definition; do not compare a frame-based profile with a sample-based workload.
+- Record which hardware model, firmware, driver, compiler, and application version produced each measurement. Recalibrate when those change, because performance may change too.
+- Measure execution duration separately from time spent waiting in a queue. The scheduler's `observe()` method expects task execution duration divided by task work; feeding it queue delay would teach it the wrong device speed.
+- Measure power using a clearly defined method and scope. This prototype checks the sum of active profile power against one configured budget; it does not include idle/platform power or model detailed power fluctuations.
+- Repeat measurements under representative operating conditions, and use conservative profile values if occasional slow executions could cause a deadline miss. An average measurement alone may not represent tail latency.
+
+For example, if a workload has `work=4` and measured device execution takes `200` microseconds, the observation is `duration_us=200`; the measured runtime per work unit is `50` microseconds. The current EWMA then blends that sample with the prior estimate. This update changes later estimates; it does not alter tasks that have already been assigned.
+
+### 2. Validate measurements before learning from them
+
+Runtime feedback affects future placement decisions, so it should be checked before passing it to `observe()`.
+
+- Confirm that the reported task really completed on the named accelerator and that the workload kind, work amount, and profile version match the task that ran.
+- Reject missing, non-finite, zero, or negative work and duration values. The current method validates positive finite work and duration, but a production collector should also validate identity, provenance, units, and freshness.
+- Detect duplicate reports and late or stale telemetry. A completion should update the model at most once and should be associated with the right task and configuration.
+- Keep execution time distinct from queue wait, data transfer, dispatch delay, and completion-reporting delay. If production scheduling must account for those costs, measure and model them explicitly rather than accidentally mixing them into device execution time.
+- Track estimate quality. If observed values differ sharply from predictions, flag the profile or device for investigation rather than allowing a bad sample stream to silently distort decisions.
+
+The repository currently has no telemetry collector, durable history, sample confidence tracking, or automatic outlier policy; these checks would belong in the integrating service or a future dedicated telemetry layer.
+
+### 3. Monitor outcomes, not just average speed
+
+A production system should record enough information to tell whether scheduling is meeting its goals and where failures occur. Useful measurements include:
+
+- **Prediction error:** compare predicted runtime with measured execution time for each device and workload profile. Break results down by configuration and report tail errors, not only the average.
+- **Deadline results:** count completed tasks that met their deadline, tasks that missed it, and tasks rejected before dispatch. Include rates and trends over time.
+- **Decision time:** measure how long scheduling itself takes, separately from task execution. A fast workload is not useful if its scheduling decision arrives too late.
+- **Device utilization:** measure how busy each accelerator is, how often it is idle, and whether work is distributed as intended.
+- **Power:** compare the scheduler's modeled active-power reservations with platform power telemetry, and count any measured or estimated budget violations. The prototype's profile-based reservation is not a physical power guarantee.
+- **Operational health:** count device errors, task overruns, invalid or late measurements, and fallback/retry actions.
+
+These metrics help answer practical questions: Are tasks missing deadlines because estimates are too optimistic? Is one accelerator overloaded? Are power readings inconsistent with the configured profiles? The prototype does not collect or publish these metrics itself.
+
+### 4. Define what happens when predictions or devices fail
+
+Predicted finish times are estimates. A real device can run slowly, report an error, or become unavailable after a task was assigned. Decide the response before deployment rather than assuming the scheduler's plan is a guarantee.
+
+- **Task overrun:** detect when actual execution exceeds its reservation or approaches its deadline. Specify whether to wait, cancel if safe, reduce work, alert, or mark dependent work as failed. The current scheduler does not extend or revise an active reservation after an overrun.
+- **Device degradation or loss:** define how health is reported and how an unhealthy accelerator is removed or derated for future plans. Also define what happens to work already dispatched to that device.
+- **No feasible assignment:** choose whether the caller rejects, retries, routes to a fallback, degrades the task, or drops it. Do not retry blindly after its absolute deadline has expired.
+- **Power pressure:** define whether new work is rejected or delayed when the power budget leaves no feasible slot. The prototype reports a rejection; it does not decide the application's recovery behavior.
+- **Clock consistency:** use one monotonic clock domain for `now_us` and absolute deadlines. If components use different clocks, translate timestamps carefully; wall-clock adjustments must not make deadlines move backward or forward unexpectedly.
+- **Concurrency and ownership:** serialize calls to one scheduler instance, as required by the current implementation, or add synchronization in a service wrapper. Define which component owns admission and task lifecycle state.
+
+The right response depends on the baseband pipeline's reliability and timing requirements; this project does not prescribe one universal fallback policy.
+
+### 5. Introduce future learned policies cautiously
+
+The current `SchedulingAgent` is a deterministic threshold policy, not a trained model. If a learned policy is added later, treat its output as a suggestion for ranking choices—not permission to violate platform constraints.
+
+1. **Start with recorded-trace evaluation.** Replay representative past workloads and compare the candidate policy with the current deterministic policy. Measure deadline misses, tail latency, rejection rate, utilization, and power, not only average throughput.
+2. **Run in shadow mode.** Let the candidate produce choices without controlling actual dispatch. Compare its proposed choices with the live scheduler and check whether it would have improved results using the same trace and constraints.
+3. **Use a limited canary.** If shadow results are acceptable, enable the candidate for a small, controlled portion of workloads or devices, with explicit monitoring and a predefined stop condition.
+4. **Keep hard checks outside the model.** Validate workload inputs and device compatibility, and enforce deadline, serialization, and power constraints in trusted scheduling code after any model proposal. An invalid or infeasible model suggestion must never be dispatched.
+5. **Keep a tested fallback and rollback path.** Preserve a known safe deterministic policy and a way for operators to switch back quickly if deadline, power, or error metrics regress.
+6. **Version the model and its inputs.** Record which model, profiles, software, and policy configuration produced each decision so that results can be reproduced and problematic releases can be identified.
+
+This repository currently has no model training, model registry, policy deployment, shadow mode, canary rollout, or rollback implementation. These are future integration and operational responsibilities, not features of the example agent.

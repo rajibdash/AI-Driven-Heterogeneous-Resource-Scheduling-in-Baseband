@@ -6,7 +6,7 @@ A small Python prototype for assigning time-critical baseband processing workloa
 
 ## Bottlenecks in traditional scheduling approaches
 
-Modern radio access networks have scheduling decisions at more than one level. A radio (UE) scheduler decides which user equipment (UE) can use radio resources in each transmission time interval (TTI), balancing throughput, fairness, quality of service (QoS), buffer backlog, and retransmission state such as HARQ. Traditional radio schedulers often use handcrafted heuristics such as Proportional Fair (PF), Round Robin (RR), or weighted PF. Those approaches address radio-resource allocation; they are not the same problem as assigning baseband compute tasks to processors, and this repository does **not** implement a UE or resource-block scheduler.
+Modern radio access networks have scheduling decisions at more than one level. A radio (UE) scheduler decides which user equipment (UE) can use radio resources in each transmission time interval (TTI), balancing throughput, fairness, quality of service (QoS), buffer backlog, and retransmission state such as HARQ ([3GPP TS 38.300](https://www.3gpp.org/DynaReport/38300.htm), [TS 38.321](https://www.3gpp.org/DynaReport/38321.htm)). Traditional radio schedulers often use handcrafted heuristics such as Proportional Fair (PF), Round Robin (RR), or weighted PF. Those approaches address radio-resource allocation; they are not the same problem as assigning baseband compute tasks to processors, and this repository does **not** implement a UE or resource-block scheduler.
 
 The broader RAN environment also carries different service profiles at the same time:
 
@@ -14,7 +14,9 @@ The broader RAN environment also carries different service profiles at the same 
 - **URLLC (Ultra-Reliable Low-Latency Communications):** emphasizes very low latency and high reliability.
 - **mMTC (Massive Machine-Type Communications):** involves many devices sending small, often sporadic messages.
 
-That changing traffic and radio environment also changes the mix and urgency of baseband Layer 1 (L1) work, including channel estimation, massive-MIMO beamforming, and decoding. At the compute-scheduling layer that this project models, important challenges include:
+These are broad service-category descriptions, not per-task timing guarantees ([ITU-R M.2083](https://www.itu.int/rec/R-REC-M.2083-0-201509-I/en), [3GPP TS 22.261](https://www.3gpp.org/DynaReport/22261.htm)).
+
+That changing traffic and radio environment also changes the mix and urgency of baseband Layer 1 (L1) work, including channel estimation, massive-MIMO beamforming, and decoding. These are examples of PHY processing functions; applicable NR physical-layer specifications include [3GPP TS 38.211](https://www.3gpp.org/DynaReport/38211.htm), [TS 38.212](https://www.3gpp.org/DynaReport/38212.htm), and [TS 38.214](https://www.3gpp.org/DynaReport/38214.htm). The exact algorithms and mapping of these operations onto CPUs, GPUs, DSPs, FPGAs, or ASICs depend on the implementation; standards compliance does not prescribe this repository's compute placement policy. Heterogeneous baseband task mapping is an implementation-level research topic, for example [NEXUS](https://arxiv.org/abs/2509.04625). At the compute-scheduling layer that this project models, important challenges include:
 
 - **Static heuristics:** a fixed device choice or fixed placement rule may not adapt well when workload size, configuration, or execution conditions change.
 - **Hardware underutilization:** without workload-aware placement, some compatible CPUs, GPUs, DSPs, FPGAs, or ASICs can be idle while another resource is overloaded.
@@ -101,7 +103,7 @@ The root-level `scheduler.py` remains as a compatibility shim for existing code 
 
 ## Scheduling model and boundaries
 
-Workload deadlines are absolute timestamps in the caller's monotonic microsecond clock. Work units must be consistent within a workload kind. The scheduler processes each submitted batch in earliest-deadline-first order, with task ID as a deterministic tie-breaker. It estimates candidate duration from per-device runtime profiles, checks device serialization, deadlines, and active-power budget, then ranks only feasible candidates using completion time plus a normalized energy penalty.
+Workload deadlines are absolute timestamps in the caller's monotonic microsecond clock. They represent task-level deadlines supplied by the integrating application; they are **not automatically equal to a service-level packet delay budget (PDB), a UE scheduling/grant window, or a HARQ timing value**. A PDB is a QoS characteristic for packet delay across a defined network portion ([3GPP TS 23.501, section 5.7.4](https://www.3gpp.org/DynaReport/23501.htm)). An integration must derive each compute-task deadline from the actual processing stage, radio timeline, and remaining end-to-end budget; this prototype does not derive those deadlines. Work units must be consistent within a workload kind. The scheduler processes each submitted batch in earliest-deadline-first order, with task ID as a deterministic tie-breaker. It estimates candidate duration from per-device runtime profiles, checks device serialization, deadlines, and active-power budget, then ranks only feasible candidates using completion time plus a normalized energy penalty.
 
 Accepted reservations persist across calls until their predicted finish time. `observe()` updates the EWMA runtime estimate for future plans; it does not revise an existing reservation. Calls to one scheduler instance must be serialized by the caller.
 
@@ -176,3 +178,15 @@ The current `SchedulingAgent` is a deterministic threshold policy, not a trained
 6. **Version the model and its inputs.** Record which model, profiles, software, and policy configuration produced each decision so that results can be reproduced and problematic releases can be identified.
 
 This repository currently has no model training, model registry, policy deployment, shadow mode, canary rollout, or rollback implementation. These are future integration and operational responsibilities, not features of the example agent.
+
+### Technical references
+
+- [ITU-R Recommendation M.2083](https://www.itu.int/rec/R-REC-M.2083-0-201509-I/en): IMT-2020 vision and broad usage scenarios.
+- [3GPP TS 22.261](https://www.3gpp.org/DynaReport/22261.htm): 5G service requirements.
+- [3GPP TS 38.300](https://www.3gpp.org/DynaReport/38300.htm): NR/NG-RAN overall description.
+- [3GPP TS 38.321](https://www.3gpp.org/DynaReport/38321.htm): NR Medium Access Control (MAC), including MAC procedures and HARQ-related behavior.
+- [3GPP TS 38.211](https://www.3gpp.org/DynaReport/38211.htm), [TS 38.212](https://www.3gpp.org/DynaReport/38212.htm), and [TS 38.214](https://www.3gpp.org/DynaReport/38214.htm): NR physical channels/modulation, channel coding, and physical-layer data procedures.
+- [3GPP TS 23.501](https://www.3gpp.org/DynaReport/23501.htm): 5G system architecture and QoS characteristics, including packet delay budget.
+- [NEXUS: Efficient and Scalable Multi-Cell mmWave Baseband Processing with Heterogeneous Compute](https://arxiv.org/abs/2509.04625): research on implementation-level heterogeneous baseband processing; it is an example of research, not a normative 3GPP specification.
+
+The standards evolve across releases; consult the applicable release and deployment profile when using them for engineering requirements. The references provide technical context for this README and do not imply that this prototype implements all procedures defined by those standards.

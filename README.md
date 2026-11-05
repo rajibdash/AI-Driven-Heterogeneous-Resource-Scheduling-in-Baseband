@@ -1,9 +1,25 @@
 # AI-Driven-Heterogeneous-Resource-Scheduling-in-Baseband
 AI-Driven Heterogeneous Resource Scheduling for 5G or 6G Baseband Processing as next-generation networks demand unprecedented data rates.
 
-## The Bottleneck of Traditional Scheduling
+## The Bottleneck of Traditional/Conventional Scheduling
 
-At the baseband L1 physical layer, different workloads like channel estimation, massive MIMO beamforming, and decoding fluctuate rapidly based on user traffic and radio channel conditions. Traditional scheduling methods face severe limitations like below:
+In modern RAN systems, user scheduling is the heartbeat of uplink and downlink efficiency. 
+Every TTI, the scheduler must decide which UEs to serve — balancing throughput, fairness, 
+QoS, buffer backlog, and HARQ state. Traditional schedulers rely on handcrafted heuristics 
+(PF, RR, weighted PF), but the complexity of real‑world radio conditions makes those rules 
+brittle.
+
+Then, the clash of Heterogeneous Traffic (Coexistence Bottleneck).
+
+So, traditional scheduling is structurally blind to multi-service multiplexing. 5G requires the 
+simultaneous management of three wildly different traffic profiles:
+* eMBB (Enhanced Mobile Broadband): Needs massive data blocks and high throughput.
+* URLLC (Ultra-Reliable Low-Latency Communications)/TCC: Needs sub-millisecond priority access. low latency communications.
+* mMTC (Massive Machine-Type Communications): Consists of millions of low-power, sporadic IoT pings. massive IoT connectivity.
+
+At the baseband L1 physical layer, different workloads like channel estimation, massive MIMO 
+beamforming, and decoding fluctuate rapidly based on user traffic and radio channel conditions. 
+Traditional scheduling methods face severe limitations like below:
 *  **Static heuristics**: Rule-based schedulers (e.g., Proportional Fair, Round Robin) fail under highly dynamic network conditions.
 *  **Hardware underutilization**: Inability to fluidly distribute tasks across heterogeneous chips (CPUs, GPUs, FPGAs, and ASICs).
 *  **Strict SLA violations**: Missing tight sub-millisecond deadlines, leading to dropped packets and high power consumption (power budget is higher).

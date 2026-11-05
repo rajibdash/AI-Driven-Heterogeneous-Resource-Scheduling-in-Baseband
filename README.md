@@ -1,6 +1,13 @@
 # AI-Driven-Heterogeneous-Resource-Scheduling-in-Baseband
 AI-Driven Heterogeneous Resource Scheduling for 5G or 6G Baseband Processing as next-generation networks demand unprecedented data rates.
 
+## The Bottleneck of Traditional Scheduling
+
+At the baseband L1 physical layer, different workloads like channel estimation, massive MIMO beamforming, and decoding fluctuate rapidly based on user traffic and radio channel conditions. Traditional scheduling methods face severe limitations like below:
+*  **Static heuristics**: Rule-based schedulers (e.g., Proportional Fair, Round Robin) fail under highly dynamic network conditions.
+*  **Hardware underutilization**: Inability to fluidly distribute tasks across heterogeneous chips (CPUs, GPUs, FPGAs, and ASICs).
+*  **Strict SLA violations**: Missing tight sub-millisecond deadlines, leading to dropped packets and high power consumption (power budget is higher).
+
 ## Adaptive scheduling prototype
 
 `scheduler.py` provides a dependency-free Python 3.10+ scheduling model for

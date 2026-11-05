@@ -20,12 +20,13 @@ The agent is a deterministic local policy controller, **not an LLM** and not a t
 ```text
 baseband_scheduler/
   __init__.py
-  agent.py       # explainable policy selection
-  scheduler.py   # EDF admission, placement, reservations, and EWMA feedback
+  __main__.py   # package simulation entry point
+  agent.py      # explainable policy selection
+  scheduler.py  # EDF admission, placement, reservations, and EWMA feedback
 tests/
   test_agent.py
   test_scheduler.py
-scheduler.py     # compatibility entry point for earlier imports and simulation
+scheduler.py    # compatibility entry point for earlier imports and simulation
 ```
 
 ## Usage
@@ -73,7 +74,7 @@ plan = scheduler.schedule([Workload("beam-2", "beamforming", 1, 200)])
 Run the illustrative simulation and standard-library test suite from the repository root (Python 3.10+; no installation required):
 
 ```sh
-python -m baseband_scheduler.scheduler
+python -m baseband_scheduler
 python -m unittest discover -s tests -v
 ```
 
